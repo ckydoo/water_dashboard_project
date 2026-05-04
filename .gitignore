@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# env files — keep secrets out of git
+.env.local
+.env.*.local
+.env
+
+# OS noise
+.DS_Store
+Thumbs.db
