@@ -8,9 +8,9 @@
 2. Create a `.env.local` file in the project root:
 
    ```env
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_API_KEY=your-supabase-key
-   SUPABASE_TABLE=water_usage
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co/rest/v1/water_usage
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   NEXT_PUBLIC_SUPABASE_TABLE=water_usage
    ```
 
 3. Run:
@@ -19,39 +19,34 @@
 4. Open:
    http://localhost:3000
 
-## Deploying to Vercel (recommended — free)
+## Deploying to GitHub Pages
 
-1. Push the project to GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   ```
-   Then create a repo at https://github.com/new and follow the push instructions.
+1. Push this project to a GitHub repository.
 
-2. Go to https://vercel.com → **Add New Project** → import your GitHub repo.
+2. In your GitHub repository, open **Settings > Secrets and variables > Actions** and add:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_TABLE`
 
-3. In the **Environment Variables** section add:
-   | Name | Value |
-   |------|-------|
-   | `SUPABASE_URL` | `https://xipiayxgqvrhbwtrzolu.supabase.co/rest/v1/water_usage` |
-   | `SUPABASE_API_KEY` | your anon key |
-   | `SUPABASE_TABLE` | `water_usage` |
+3. In **Settings > Pages**, set **Source** to **GitHub Actions**.
 
-4. Click **Deploy**. Vercel runs `next build` automatically and gives you a live HTTPS URL.
+4. Push to the `main` branch. The included workflow will build and deploy to Pages.
 
-> **Important:** never commit `.env.local` — it is already in `.gitignore`.
+5. Your site will be published at:
+   - `https://<your-username>.github.io/<your-repo>/`
+
+> Important: GitHub Pages is static hosting. The dashboard now reads from Supabase directly in the browser using the anon key.
 
 ---
 
 ## Features
 
-- Server-side authenticated data fetch through `/api/water-usage`
+- Live Supabase data fetch directly from the browser (GitHub Pages compatible)
 - Preset range filters plus custom start/end datetime picker
 - Auto-refresh options: 15s, 30s, 60s, or manual
 - Flow trend chart, total consumption trend, anomaly highlighting, and CSV export
 
 ## Notes
 
-- Keep `SUPABASE_API_KEY` in `.env.local` so the key is never exposed to the browser.
-- `SUPABASE_TABLE` is optional and defaults to `water_usage`.
+- Use a Supabase anon key for `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- `NEXT_PUBLIC_SUPABASE_TABLE` is optional and defaults to `water_usage`.
