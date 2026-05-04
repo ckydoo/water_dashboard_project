@@ -34,9 +34,6 @@ const DEFAULT_THRESHOLDS = {
   zeroFlowMinutes: "45",
 };
 
-const DEFAULT_TABLE = "water_usage";
-const DEFAULT_SELECT = "flow_rate,total_litres,created_at";
-
 function formatNumber(value) {
   return numberFormat.format(Number(value) || 0);
 }
@@ -104,78 +101,34 @@ function getPresetDates(range) {
   };
 }
 
-function getClientSupabaseConfig() {
-  return {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    tableName: process.env.NEXT_PUBLIC_SUPABASE_TABLE || DEFAULT_TABLE,
-  };
-}
+function buildApiUrl({ range, customStart, customEnd }) {
+  const params = new URLSearchParams();
 
-function buildSupabaseRequestUrl(rawUrl, tableName) {
-  const parsed = new URL(rawUrl);
-
-  if (parsed.pathname.includes("/rest/v1/")) {
-    return parsed;
+  if (range && range !== "custom") {
+    params.set("range", range);
   }
 
-  return new URL(`/rest/v1/${tableName}`, parsed);
-}
-
-function applyDateFilters(requestUrl, start, end) {
-  if (start && end) {
-    requestUrl.searchParams.set("and", `(created_at.gte.${start},created_at.lte.${end})`);
-    return;
+  if (customStart) {
+    params.set("start", new Date(customStart).toISOString());
   }
 
-  if (start) {
-    requestUrl.searchParams.set("created_at", `gte.${start}`);
+  if (customEnd) {
+    params.set("end", new Date(customEnd).toISOString());
   }
 
-  if (end) {
-    requestUrl.searchParams.set("created_at", `lte.${end}`);
-  }
-}
-
-function getIsoFromRange(range) {
-  if (!range || range === "all") {
-    return null;
-  }
-
-  const now = new Date();
-  const start = new Date(now);
-  const hours = range === "1h" ? 1 : range === "24h" ? 24 : 24 * 7;
-
-  start.setHours(start.getHours() - hours);
-  return start.toISOString();
-}
-
-function buildSupabaseUrl({ range, customStart, customEnd }) {
-  const { supabaseUrl, tableName } = getClientSupabaseConfig();
-  const requestUrl = buildSupabaseRequestUrl(supabaseUrl, tableName);
-
-  requestUrl.searchParams.set("select", DEFAULT_SELECT);
-  requestUrl.searchParams.set("order", "created_at.asc");
-
-  const effectiveStart = customStart ? new Date(customStart).toISOString() : getIsoFromRange(range);
-  const effectiveEnd = customEnd ? new Date(customEnd).toISOString() : "";
-  applyDateFilters(requestUrl, effectiveStart, effectiveEnd);
-
-  return requestUrl.toString();
+  const query = params.toString();
+  return query ? `/api/water-usage?${query}` : "/api/water-usage";
 }
 
 function buildHistoryUrl(days) {
-  const { supabaseUrl, tableName } = getClientSupabaseConfig();
   const end = new Date();
   const start = new Date(end);
 
   start.setDate(start.getDate() - days);
 
-  const requestUrl = buildSupabaseRequestUrl(supabaseUrl, tableName);
-  requestUrl.searchParams.set("select", DEFAULT_SELECT);
-  requestUrl.searchParams.set("order", "created_at.asc");
-  applyDateFilters(requestUrl, start.toISOString(), end.toISOString());
-  return requestUrl.toString();
+  return `/api/water-usage?start=${encodeURIComponent(
+    start.toISOString()
+  )}&end=${encodeURIComponent(end.toISOString())}`;
 }
 
 function downloadCsv(filename, rows) {
@@ -305,37 +258,17 @@ export default function Dashboard() {
     let isMounted = true;
     let timerId;
 
-    const { supabaseUrl, supabaseKey } = getClientSupabaseConfig();
-
-    if (!supabaseUrl || !supabaseKey) {
-      setError(
-        "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in environment variables."
-      );
-      setLoading(false);
-      return () => {
-        isMounted = false;
-      };
-    }
-
     async function loadData() {
       setLoading(true);
       setError("");
 
       try {
         const [currentRes, historyRes] = await Promise.all([
-          fetch(buildSupabaseUrl({ range: timeRange, customStart, customEnd }), {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              Accept: "application/json",
-            },
+          fetch(buildApiUrl({ range: timeRange, customStart, customEnd }), {
+            headers: { Accept: "application/json" },
           }),
           fetch(buildHistoryUrl(30), {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              Accept: "application/json",
-            },
+            headers: { Accept: "application/json" },
           }),
         ]);
 
@@ -642,7 +575,7 @@ export default function Dashboard() {
         <div className="filter-head">
           <div>
             <h2>Custom Date Range</h2>
-            <p>Query telemetry using an exact start and end timestamp.</p>
+            <p>Query the API using an exact start and end timestamp.</p>
           </div>
           <button
             type="button"
