@@ -167,10 +167,27 @@ function getUsageDelta(readings) {
     return 0;
   }
 
-  const firstValue = Number(readings[0].total_litres) || 0;
-  const lastValue = Number(readings[readings.length - 1].total_litres) || 0;
+  let usage = 0;
 
-  return Math.max(0, lastValue - firstValue);
+  for (let index = 1; index < readings.length; index += 1) {
+    const previous = Number(readings[index - 1].total_litres);
+    const current = Number(readings[index].total_litres);
+
+    if (!Number.isFinite(previous) || !Number.isFinite(current)) {
+      continue;
+    }
+
+    if (current >= previous) {
+      usage += current - previous;
+      continue;
+    }
+
+    // Counter dropped, likely due to sensor reboot/reset.
+    // Count the post-reset cumulative value instead of zeroing the whole period.
+    usage += Math.max(0, current);
+  }
+
+  return Math.max(0, usage);
 }
 
 function buildPeriodSummary(label, readings, hours) {
@@ -387,25 +404,25 @@ export default function Dashboard() {
     ];
 
     let healthTone = "healthy";
-    let healthTitle = "Healthy";
-    let healthDetail = "Sensor is reporting on time.";
+      let healthTitle = "Operational";
+      let healthDetail = "Meter feed is reporting within expected interval.";
 
     if (!source.length) {
       healthTone = "offline";
-      healthTitle = "No Signal";
-      healthDetail = "No readings available for the monitoring window.";
+      healthTitle = "No Site Signal";
+      healthDetail = "No meter readings available for the selected site window.";
     } else if (ageMs >= numericThresholds.staleMinutes * 60000 * 2) {
       healthTone = "offline";
-      healthTitle = "Offline";
-      healthDetail = `Last reading arrived ${formatDuration(ageMs)} ago.`;
+      healthTitle = "Meter Offline";
+      healthDetail = `Last site reading arrived ${formatDuration(ageMs)} ago.`;
     } else if (ageMs >= numericThresholds.staleMinutes * 60000) {
       healthTone = "warning";
-      healthTitle = "Stale";
-      healthDetail = `Telemetry is delayed by ${formatDuration(ageMs)}.`;
+      healthTitle = "Telemetry Delay";
+      healthDetail = `Site telemetry is delayed by ${formatDuration(ageMs)}.`;
     } else if (zeroFlowDurationMs >= numericThresholds.zeroFlowMinutes * 60000) {
       healthTone = "warning";
-      healthTitle = "Flow Warning";
-      healthDetail = `Zero flow persisted for ${formatDuration(zeroFlowDurationMs)}.`;
+      healthTitle = "Line Flow Warning";
+      healthDetail = `No-flow condition persisted for ${formatDuration(zeroFlowDurationMs)}.`;
     }
 
     const alerts = [];
@@ -413,23 +430,23 @@ export default function Dashboard() {
     if (!source.length) {
       alerts.push({
         level: "critical",
-        title: "No readings available",
-        detail: "Check the sensor connection or upstream ingestion pipeline.",
+        title: "No site readings available",
+        detail: "Check meter wiring, controller power, and ingestion pipeline.",
       });
     } else {
       if (ageMs >= numericThresholds.staleMinutes * 60000) {
         alerts.push({
           level: "critical",
-          title: "Sensor freshness breach",
-          detail: `No telemetry has arrived within ${numericThresholds.staleMinutes} minutes.`,
+          title: "Telemetry freshness breach",
+          detail: `No site telemetry has arrived within ${numericThresholds.staleMinutes} minutes.`,
         });
       }
 
       if (latestFlow >= numericThresholds.highFlow) {
         alerts.push({
           level: "warning",
-          title: "High flow threshold exceeded",
-          detail: `Current flow is ${formatNumber(latestFlow)} L/min against a limit of ${formatNumber(
+          title: "High line-flow limit exceeded",
+          detail: `Current line flow is ${formatNumber(latestFlow)} L/min against a site limit of ${formatNumber(
             numericThresholds.highFlow
           )} L/min.`,
         });
@@ -438,8 +455,8 @@ export default function Dashboard() {
       if (zeroFlowDurationMs >= numericThresholds.zeroFlowMinutes * 60000) {
         alerts.push({
           level: "warning",
-          title: "Possible outage or closed line",
-          detail: `Flow has stayed below ${formatNumber(
+          title: "Possible closed valve or supply outage",
+          detail: `Line flow has stayed below ${formatNumber(
             numericThresholds.lowFlow
           )} L/min for ${formatDuration(zeroFlowDurationMs)}.`,
         });
@@ -448,8 +465,8 @@ export default function Dashboard() {
       if (metrics.anomalyCount > 0) {
         alerts.push({
           level: "info",
-          title: "Anomaly spikes detected",
-          detail: `${metrics.anomalyCount} anomalous reading(s) found in the selected window.`,
+          title: "Abnormal flow spikes detected",
+          detail: `${metrics.anomalyCount} abnormal reading(s) found in the selected site window.`,
         });
       }
     }
@@ -513,7 +530,7 @@ export default function Dashboard() {
     }
 
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    downloadCsv(`water-readings-${timeRange}-${stamp}.csv`, recentRows);
+    downloadCsv(`site-water-readings-${timeRange}-${stamp}.csv`, recentRows);
   }
 
   function updateThreshold(name, value) {
@@ -531,8 +548,8 @@ export default function Dashboard() {
     <main className={`dashboard ${isNightMode ? "night" : "day"}`}>
       <header className="topbar">
         <div>
-          <h1>Water Usage Command Center</h1>
-          <p>Live monitoring for flow, health status, and threshold-based alerts.</p>
+          <h1>Construction Water Operations Center</h1>
+          <p>Live site monitoring for line flow, meter health, and limit-based alerts.</p>
         </div>
         <div className="controls">
           <div className="range-filter" role="group" aria-label="Time range">
@@ -548,7 +565,7 @@ export default function Dashboard() {
             ))}
           </div>
           <div className="refresh-control">
-            <label htmlFor="refreshInterval">Refresh</label>
+            <label htmlFor="refreshInterval">Site Refresh</label>
             <select
               id="refreshInterval"
               value={refreshInterval}
@@ -574,8 +591,8 @@ export default function Dashboard() {
       <section className="panel filter-panel">
         <div className="filter-head">
           <div>
-            <h2>Custom Date Range</h2>
-            <p>Query the API using an exact start and end timestamp.</p>
+            <h2>Custom Site Time Window</h2>
+            <p>Query site telemetry using an exact start and end timestamp.</p>
           </div>
           <button
             type="button"
@@ -583,12 +600,12 @@ export default function Dashboard() {
             onClick={applyCustomRange}
             disabled={customRangeInvalid}
           >
-            Apply Custom Range
+            Apply Site Window
           </button>
         </div>
         <div className="date-grid">
           <label>
-            <span>Start</span>
+            <span>Shift Start</span>
             <input
               type="datetime-local"
               value={customStart}
@@ -596,7 +613,7 @@ export default function Dashboard() {
             />
           </label>
           <label>
-            <span>End</span>
+            <span>Shift End</span>
             <input
               type="datetime-local"
               value={customEnd}
@@ -605,20 +622,20 @@ export default function Dashboard() {
           </label>
         </div>
         {customRangeInvalid ? (
-          <p className="inline-error">Start time must be before end time.</p>
+          <p className="inline-error">Shift start time must be before shift end time.</p>
         ) : null}
       </section>
 
       {error ? <div className="notice error">{error}</div> : null}
-      {loading ? <div className="notice">Loading latest readings...</div> : null}
+      {loading ? <div className="notice">Loading latest site readings...</div> : null}
 
       <section className="panel day-progress">
         <div>
-          <span>Date</span>
+          <span>Site Date</span>
           <strong>{todayProgress.dateLabel}</strong>
         </div>
         <div>
-          <span>Litres Used So Far</span>
+          <span>Water Used This Shift</span>
           <strong>{formatNumber(todayProgress.usedSoFar)} L</strong>
         </div>
       </section>
@@ -626,8 +643,8 @@ export default function Dashboard() {
       <section className="ops-grid">
         <article className="panel status-panel">
           <div className="panel-head">
-            <h2>Sensor Health</h2>
-            <span>Based on the latest 30 days of telemetry</span>
+            <h2>Meter and Telemetry Health</h2>
+            <span>Based on the latest 30 days of site telemetry</span>
           </div>
           <div className={`health-banner ${operationalState.healthTone}`}>
             <div>
@@ -638,28 +655,28 @@ export default function Dashboard() {
           </div>
           <div className="health-meta">
             <div>
-              <span>Last Reading</span>
+              <span>Last Site Reading</span>
               <strong>{formatDateTime(operationalState.latest.created_at)}</strong>
             </div>
             <div>
-              <span>Data Age</span>
+              <span>Telemetry Delay</span>
               <strong>{formatDuration(operationalState.ageMs)}</strong>
             </div>
             <div>
-              <span>Zero Flow Streak</span>
+              <span>No-Flow Duration</span>
               <strong>{formatDuration(operationalState.zeroFlowDurationMs)}</strong>
             </div>
           </div>
 
           <div className="subsection-head">
-            <h3>Alert Thresholds</h3>
+            <h3>Site Alert Limits</h3>
             <button type="button" className="ghost" onClick={resetThresholds}>
               Reset Defaults
             </button>
           </div>
           <div className="threshold-grid">
             <label>
-              <span>High Flow (L/min)</span>
+              <span>High Flow Limit (L/min)</span>
               <input
                 type="number"
                 min="0"
@@ -669,7 +686,7 @@ export default function Dashboard() {
               />
             </label>
             <label>
-              <span>Low Flow (L/min)</span>
+              <span>Low Flow Limit (L/min)</span>
               <input
                 type="number"
                 min="0"
@@ -679,7 +696,7 @@ export default function Dashboard() {
               />
             </label>
             <label>
-              <span>Stale After (min)</span>
+              <span>Telemetry Timeout (min)</span>
               <input
                 type="number"
                 min="1"
@@ -689,7 +706,7 @@ export default function Dashboard() {
               />
             </label>
             <label>
-              <span>Zero Flow Alert (min)</span>
+              <span>No-Flow Alert (min)</span>
               <input
                 type="number"
                 min="1"
@@ -703,17 +720,17 @@ export default function Dashboard() {
 
         <article className="panel summary-panel">
           <div className="panel-head">
-            <h2>Consumption Summary</h2>
-            <span>Rolling operational periods</span>
+            <h2>Site Water Summary</h2>
+            <span>Rolling site periods</span>
           </div>
           <div className="table-wrap summary-table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Period</th>
-                  <th>Usage (L)</th>
-                  <th>Avg Flow</th>
-                  <th>Samples</th>
+                  <th>Time Window</th>
+                  <th>Water Used (L)</th>
+                  <th>Average Flow</th>
+                  <th>Readings</th>
                 </tr>
               </thead>
               <tbody>
@@ -730,14 +747,14 @@ export default function Dashboard() {
           </div>
 
           <div className="subsection-head alerts-head">
-            <h3>Active Alerts</h3>
+            <h3>Site Alerts</h3>
             <span>{operationalState.alerts.length} open</span>
           </div>
           <div className="alert-list">
             {operationalState.alerts.length === 0 ? (
               <div className="alert-item calm">
-                <strong>No active alerts</strong>
-                <p>Current sensor state is within configured thresholds.</p>
+                <strong>No active site alerts</strong>
+                <p>Current meter state is within configured site limits.</p>
               </div>
             ) : (
               operationalState.alerts.map((alert) => (
@@ -753,30 +770,30 @@ export default function Dashboard() {
 
       <section className="kpis">
         <article className="kpi">
-          <span>Litres Used Today</span>
+          <span>Water Used Today</span>
           <strong>{formatNumber(operationalState.todayUsageLitres)} L</strong>
         </article>
         <article className="kpi">
-          <span>Current Flow Rate</span>
+          <span>Current Line Flow</span>
           <strong>{formatNumber(metrics.latestFlow)} L/min</strong>
         </article>
         <article className="kpi">
-          <span>Total Consumption</span>
+          <span>Cumulative Water</span>
           <strong>{formatNumber(metrics.totalLitres)} L</strong>
         </article>
         <article className="kpi">
-          <span>Average Flow</span>
+          <span>Average Line Flow</span>
           <strong>{formatNumber(metrics.averageFlow)} L/min</strong>
         </article>
         <article className="kpi">
-          <span>Flow Delta</span>
+          <span>Flow Change</span>
           <strong className={metrics.flowDelta >= 0 ? "up" : "down"}>
             {metrics.flowDelta >= 0 ? "+" : ""}
             {formatNumber(metrics.flowDelta)}
           </strong>
         </article>
         <article className="kpi">
-          <span>Anomaly Events</span>
+          <span>Abnormal Flow Events</span>
           <strong>{metrics.anomalyCount}</strong>
         </article>
       </section>
@@ -785,7 +802,7 @@ export default function Dashboard() {
         <div className="chart-stack">
           <article className="panel chart-panel">
             <div className="panel-head">
-              <h2>Flow Trend</h2>
+              <h2>Line Flow Trend</h2>
               <span>{metrics.readingCount} data points</span>
             </div>
             <div className="chart-wrap">
@@ -835,8 +852,8 @@ export default function Dashboard() {
 
           <article className="panel chart-panel compact">
             <div className="panel-head">
-              <h2>Total Consumption Trend</h2>
-              <span>Accumulated litres over time</span>
+              <h2>Cumulative Water Trend</h2>
+              <span>Accumulated site litres over time</span>
             </div>
             <div className="chart-wrap compact">
               <ResponsiveContainer width="100%" height="100%">
@@ -877,16 +894,16 @@ export default function Dashboard() {
 
         <article className="panel table-panel">
           <div className="panel-head">
-            <h2>Recent Readings</h2>
+            <h2>Latest Site Readings</h2>
             <div className="table-actions">
-              <span>Newest first</span>
+              <span>Most recent first</span>
               <button
                 type="button"
                 className="export"
                 onClick={handleExportCsv}
                 disabled={recentRows.length === 0}
               >
-                Export CSV
+                Export Site CSV
               </button>
             </div>
           </div>
@@ -894,16 +911,16 @@ export default function Dashboard() {
             <table>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Flow (L/min)</th>
-                  <th>Total (L)</th>
+                  <th>Timestamp</th>
+                  <th>Line Flow (L/min)</th>
+                  <th>Cumulative (L)</th>
                 </tr>
               </thead>
               <tbody>
                 {recentRows.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="empty">
-                      No readings yet.
+                      No site readings yet.
                     </td>
                   </tr>
                 ) : (
@@ -921,7 +938,7 @@ export default function Dashboard() {
         </article>
       </section>
 
-      <footer className="stamp">Last update: {formatDateTime(metrics.latest.created_at)}</footer>
+      <footer className="stamp">Last Site Sync: {formatDateTime(metrics.latest.created_at)}</footer>
 
       <style jsx>{`
         .dashboard {
