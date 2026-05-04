@@ -417,8 +417,8 @@ export default function Dashboard() {
       healthDetail = `Last site reading arrived ${formatDuration(ageMs)} ago.`;
     } else if (ageMs >= numericThresholds.staleMinutes * 60000) {
       healthTone = "warning";
-      healthTitle = "Telemetry Delay";
-      healthDetail = `Site telemetry is delayed by ${formatDuration(ageMs)}.`;
+      healthTitle = "Site Data Delay";
+      healthDetail = `Site data is delayed by ${formatDuration(ageMs)}.`;
     } else if (zeroFlowDurationMs >= numericThresholds.zeroFlowMinutes * 60000) {
       healthTone = "warning";
       healthTitle = "Line Flow Warning";
@@ -437,8 +437,8 @@ export default function Dashboard() {
       if (ageMs >= numericThresholds.staleMinutes * 60000) {
         alerts.push({
           level: "critical",
-          title: "Telemetry freshness breach",
-          detail: `No site telemetry has arrived within ${numericThresholds.staleMinutes} minutes.`,
+          title: "Site data freshness breach",
+          detail: `No site data has arrived within ${numericThresholds.staleMinutes} minutes.`,
         });
       }
 
@@ -592,7 +592,7 @@ export default function Dashboard() {
         <div className="filter-head">
           <div>
             <h2>Custom Site Time Window</h2>
-            <p>Query site telemetry using an exact start and end timestamp.</p>
+            <p>Query site data using an exact start and end timestamp.</p>
           </div>
           <button
             type="button"
@@ -643,8 +643,8 @@ export default function Dashboard() {
       <section className="ops-grid">
         <article className="panel status-panel">
           <div className="panel-head">
-            <h2>Meter and Telemetry Health</h2>
-            <span>Based on the latest 30 days of site telemetry</span>
+            <h2>Meter and Site Data Health</h2>
+            <span>Based on the latest 30 days of site data</span>
           </div>
           <div className={`health-banner ${operationalState.healthTone}`}>
             <div>
@@ -659,7 +659,7 @@ export default function Dashboard() {
               <strong>{formatDateTime(operationalState.latest.created_at)}</strong>
             </div>
             <div>
-              <span>Telemetry Delay</span>
+              <span>Site Data Delay</span>
               <strong>{formatDuration(operationalState.ageMs)}</strong>
             </div>
             <div>
@@ -696,7 +696,7 @@ export default function Dashboard() {
               />
             </label>
             <label>
-              <span>Telemetry Timeout (min)</span>
+              <span>Site Data Timeout (min)</span>
               <input
                 type="number"
                 min="1"
